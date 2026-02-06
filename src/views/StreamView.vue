@@ -37,7 +37,7 @@
           <span class="label">{{ $t("StreamView.messages.roomID", { roleDescription, roomID: "" }) }}</span>
           <span class="value monospace">{{ roomID }}</span>
         </mdui-card>
-
+        <vue-qrcode :value="locationOrigin+'/?join='+roomID" />
         <mdui-card v-if="!isClient" variant="outlined" clickable class="info-group" @click="copyShareLink(false)">
           <span class="label">{{ $t("StreamView.messages.shareLink") }}</span>
           <span class="value monospace">{{ locationOrigin }}/?join={{ roomID }}</span>
@@ -97,6 +97,7 @@
 </template>
 
 <script>
+import VueQrcode from 'vue-qrcode'
 import { useSharedStore } from "@/stores/shared";
 import { msg } from "@/utils/msg";
 import { Comm } from "@/utils/comm";
@@ -806,6 +807,7 @@ export default {
   components: {
     "reelsync-loading-ring": LoadingRing,
     "reelsync-video-player": VideoPlayer,
+     "vue-qrcode": VueQrcode
   },
 };
 </script>
@@ -889,7 +891,8 @@ export default {
 
 .info-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  /* grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); */
+  grid-template-columns: 1fr 150px 1fr; 
   gap: 1.5rem;
 }
 
