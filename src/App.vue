@@ -7,7 +7,7 @@
   <div class="topbar">
     <div class="topbar-left" @click="confirmBackToHome">
       <img src="./assets/logo.png" alt="ReelSync Logo" id="logo" />
-      <div id="title">ReelSync</div>
+      <div id="title">videoSync</div>
     </div>
     <div class="topbar-right">
       <mdui-chip class="topbar-chip" end-icon="language--rounded" elevated @click="showLanguageSwitchConfirmation">{{
@@ -28,7 +28,7 @@
     </router-view>
   </div>
   <footer>
-    <div class="footer-left">
+    <!-- <div class="footer-left">
       <div class="version-info">
         <b style="font-weight: bold">
           {{ $t("App.versionLiteral") }}
@@ -47,7 +47,7 @@
           icon="code--rounded">{{
             $t("App.sourceCode") }}</mdui-chip>
       </div>
-    </div>
+    </div> -->
     <div class="footer-right">
       <span>{{ $t("App.footer.techs") }}</span>
     </div>

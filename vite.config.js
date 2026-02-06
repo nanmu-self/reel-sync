@@ -18,11 +18,12 @@ export default defineConfig(({ mode }) => {
   }
 
   const appVersion = mode === "development" ? "devel" : commitHash || version;
-  const commitUrl = commitHash
-    ? `https://github.com/kev1nweng/reel-sync/commit/${commitHash}`
-    : "";
+  const commitUrl = commitHash ? `https://github.com/kev1nweng/reel-sync/commit/${commitHash}` : "";
 
   return {
+    server: {
+      host: true, // 允许局域网访问
+    },
     plugins: [
       vue({
         template: {
