@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => {
   return {
     server: {
       host: true, // 允许局域网访问
+      open: true,  // 可选：自动打开浏览器
     },
     plugins: [
       vue({

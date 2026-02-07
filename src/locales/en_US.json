@@ -57,6 +57,7 @@
       "screenShareError": "Failed to access the video stream. Please check your browser's privacy or permission settings.",
       "screenShareNotSupported": "Failed to request the video stream. Screen sharing is not supported by your browser.",
       "safariWarning": "Safari detected. \nDue to browser API limitations, some peer-to-peer features (like local video sharing and screen capture) may not work correctly, even in the latest Safari version. \nTo get the full functionality, please use a Chromium or Firefox-based browser.",
+      "cameraError": "Failed to access camera or microphone. Please check your browser permissions or ensure the site is accessed via HTTPS.",
       "firefoxWarning": "Firefox detected. Due to browser limitations, you cannot share system audio while screen sharing. To share audio, please switch to a Chromium-based browser.",
       "mobileOSWarning": "Mobile device detected. Due to operating system and mobile browser limitations, screen sharing is not available on mobile platforms. To initiate screen sharing, please use a desktop browser."
     },
@@ -139,8 +140,8 @@
       "copiedToClipboard": "Copied to clipboard",
       "selectionReset": "Media source reset",
       "connectionRestricted": "Connection limited: Relay node unavailable",
-      "voiceCallEnabled": "Voice call enabled",
-      "voiceCallDisabled": "Voice call disabled",
+      "voiceCallEnabled": "Video call enabled",
+      "voiceCallDisabled": "Video call disabled",
       "shutdown": {
         "headline": "Session Ended",
         "description": "Your partner has ended the session. You will be redirected to the home page.",
@@ -148,7 +149,7 @@
       }
     },
     "labels": {
-      "voiceToggle": "Voice Call",
+      "voiceToggle": "Video Call",
       "videoQuality": "Video Quality"
     },
     "qualityPresets": {

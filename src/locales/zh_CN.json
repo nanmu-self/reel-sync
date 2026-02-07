@@ -57,6 +57,7 @@
       "screenShareError": "请求桌面视频流失败。请检查您的浏览器是否自动拒绝了请求？",
       "screenShareNotSupported": "请求桌面视频流失败。您的浏览器似乎不支持屏幕共享。",
       "safariWarning": "检测到您正在使用 Safari。由于浏览器 API 限制，即使使用最新的 Safari，您也无法正常地与他人进行点对点推流（包括加载本地视频和屏幕共享）。若要获得完整的功能，请切换到基于 Chromium 或 Firefox 的浏览器。",
+      "cameraError": "无法访问摄像头或麦克风。请检查您的浏览器权限设置，或确保通过 HTTPS 访问网站。",
       "firefoxWarning": "检测到您正在使用 Firefox。由于浏览器限制，在屏幕共享时，您无法同时分享系统音频。若要分享音频，请切换到基于 Chromium 的浏览器。",
       "mobileOSWarning": "检测到您正在使用移动设备。由于操作系统和移动端浏览器的限制，您无法在移动端发起屏幕共享。若要发起屏幕共享，请在桌面端浏览器中打开此页面。"
     },
@@ -140,8 +141,8 @@
       "copiedToClipboard": "已复制到剪切板",
       "selectionReset": "媒体源已重置",
       "connectionRestricted": "连接受限：信使节点不可用",
-      "voiceCallEnabled": "语音通话已启用",
-      "voiceCallDisabled": "语音通话已禁用",
+      "voiceCallEnabled": "视频通话已开启",
+      "voiceCallDisabled": "视频通话已关闭",
       "shutdown": {
         "headline": "会话结束",
         "description": "您的伙伴结束了会话。您将被重定向至首页。",
@@ -149,7 +150,7 @@
       }
     },
     "labels": {
-      "voiceToggle": "语音通话",
+      "voiceToggle": "视频通话",
       "videoQuality": "视频质量"
     },
     "qualityPresets": {

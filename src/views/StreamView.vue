@@ -13,7 +13,7 @@
         <!-- Voice Toggle -->
         <div v-if="isReady" class="voice-controls">
           <mdui-switch id="voice-switch" ref="voiceSwitch" @change="toggleVoice" :checked="isVoiceEnabled"
-            checked-icon="mic--rounded" unchecked-icon="mic_off--rounded"></mdui-switch>
+            checked-icon="videocam--rounded" unchecked-icon="videocam_off--rounded"></mdui-switch>
           <label>{{ $t("StreamView.labels.voiceToggle") }}</label>
         </div>
       </div>
@@ -37,7 +37,7 @@
           <span class="label">{{ $t("StreamView.messages.roomID", { roleDescription, roomID: "" }) }}</span>
           <span class="value monospace">{{ roomID }}</span>
         </mdui-card>
-        <vue-qrcode :value="locationOrigin+'/?join='+roomID" />
+        <vue-qrcode :color="{ dark: '#000000', light: '#ffffff' }" type="image/webp" :value="locationOrigin+'/?join='+roomID" />
         <mdui-card v-if="!isClient" variant="outlined" clickable class="info-group" @click="copyShareLink(false)">
           <span class="label">{{ $t("StreamView.messages.shareLink") }}</span>
           <span class="value monospace">{{ locationOrigin }}/?join={{ roomID }}</span>
@@ -92,12 +92,29 @@
         <span class="quality-description">{{ qualityDescription }}</span>
       </mdui-card>
     </div>
-    <audio ref="remoteAudio" class="remote-audio" autoplay playsinline></audio>
+    <!-- Video Call Window -->
+    <div 
+      v-show="shared.app.isVoiceEnabled || remoteVoiceEnabled" 
+      class="video-call-window"
+      :class="{ collapsed: isCollapsed }"
+      :style="videoWindowStyle"
+      @mousedown="startDrag"
+      @touchstart="startDrag"
+      @click="handleWindowClick"
+    >
+      <template v-if="!isCollapsed">
+        <video ref="remoteCallVideo" class="remote-call-video" autoplay playsinline></video>
+        <video ref="localCallVideo" class="local-call-video" autoplay playsinline muted></video>
+      </template>
+      <div v-else class="collapsed-content">
+        <mdui-icon name="videocam--rounded"></mdui-icon>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import VueQrcode from 'vue-qrcode'
+import VueQrcode from 'vue-qrcode';
 import { useSharedStore } from "@/stores/shared";
 import { msg } from "@/utils/msg";
 import { Comm } from "@/utils/comm";
@@ -109,6 +126,11 @@ import LoadingRing from "@/components/LoadingRing.vue";
 import VideoPlayer from "@/components/VideoPlayer.vue";
 
 export default {
+  components: {
+    "reelsync-loading-ring": LoadingRing,
+    "reelsync-video-player": VideoPlayer,
+    "vue-qrcode": VueQrcode
+  },
   name: "StreamView",
   data() {
     return {
@@ -122,9 +144,33 @@ export default {
       remoteVoiceEnabled: false, // 追踪对方是否启用了语音
       reconnectTimer: null,
       shared: useSharedStore(),
+      // Video window state
+      windowPos: { x: 0, y: 70 },
+      isDragging: false,
+      dragOffset: { x: 0, y: 0 },
+      isCollapsed: false,
+      dragStartTime: 0,
+      hasMoved: false,
     };
   },
   computed: {
+    videoWindowStyle() {
+      if (this.isCollapsed) {
+        return {
+          transform: `translate(${this.windowPos.x}px, ${this.windowPos.y}px)`,
+          width: '48px',
+          height: '48px',
+          borderRadius: '24px',
+          cursor: 'pointer',
+          transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
+        };
+      }
+      return {
+        transform: `translate(${this.windowPos.x}px, ${this.windowPos.y}px)`,
+        cursor: this.isDragging ? 'grabbing' : 'grab',
+        transition: this.isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
+      };
+    },
     method() {
       return this.shared.app.method;
     },
@@ -204,22 +250,32 @@ export default {
               legacyGetUserMedia.call(navigator, constraints, resolve, reject);
             }));
 
-          // Request microphone access with compatibility options
+          // Request camera and microphone access
           this.shared.app.audioStream = await getUserMedia({
             audio: {
               echoCancellation: true,
               noiseSuppression: true,
               autoGainControl: true,
             },
-            video: false,
+            video: {
+              width: { ideal: 320 },
+              height: { ideal: 240 },
+              frameRate: { ideal: 24 },
+              facingMode: "user"
+            },
           });
 
-          msg.i("Microphone access granted, starting voice call");
+          msg.i("Camera and microphone access granted, starting call");
+          
+          // Display local video
+          if (this.$refs.localCallVideo) {
+            this.$refs.localCallVideo.srcObject = this.shared.app.audioStream;
+          }
 
-          // Setup audio call listener before notifying peer
+          // Setup call listener before notifying peer
           this.setupAudioCallListener();
 
-          // Notify the remote peer about voice enablement
+          // Notify the remote peer about call enablement
           if (this.shared.peers.remote.data) {
             if (this.isClient) {
               this.shared.peers.remote.data.send(comm.client.voiceEnabled());
@@ -228,20 +284,25 @@ export default {
             }
           }
 
-          // Start audio call if remote peer has also enabled voice
+          // Start call if remote peer has also enabled it
           if (this.remoteVoiceEnabled) {
             this.startAudioCall();
           }
         } catch (error) {
-          msg.e("Failed to access microphone:", error);
+          msg.e("Failed to access media devices:", error);
           this.shared.app.isVoiceEnabled = false;
           if (this.$refs.voiceSwitch) this.$refs.voiceSwitch.checked = false;
+          
+          mduiSnackbar({
+            message: this.$t("StreamView.messages.cameraError") + (error.message ? ` (${error.message})` : ""),
+            placement: "top",
+          });
         }
       } else {
-        // Disable voice call
+        // Disable call
         this.stopAudioCall();
 
-        // Notify the remote peer about voice disablement
+        // Notify the remote peer about call disablement
         if (this.shared.peers.remote.data) {
           if (this.isClient) {
             this.shared.peers.remote.data.send(comm.client.voiceDisabled());
@@ -250,7 +311,7 @@ export default {
           }
         }
 
-        msg.i("Voice call disabled");
+        msg.i("Video call disabled");
       }
     },
 
@@ -260,117 +321,126 @@ export default {
       this.audioCallListenerRegistered = true;
 
       this.shared.peers.local.audio.on("call", (call) => {
-        msg.i("Incoming audio call");
+        msg.i("Incoming call");
 
-        // Answer with local audio stream if available, otherwise answer without stream
+        // Answer with local stream if available, otherwise answer without stream
         if (this.shared.app.audioStream) {
           call.answer(this.shared.app.audioStream);
         } else {
-          // If no local stream, just answer to receive remote audio
+          // If no local stream, just answer to receive remote stream
           call.answer();
         }
 
-        call.on("stream", (remoteAudioStream) => {
-          msg.i("Received remote audio stream from incoming call");
-          this.playRemoteAudio(remoteAudioStream);
+        call.on("stream", (remoteStream) => {
+          msg.i("Received remote stream from incoming call");
+          this.playRemoteAudio(remoteStream);
         });
 
         call.on("error", (err) => {
-          msg.e("Audio call error:", err);
+          msg.e("Call error:", err);
         });
 
         call.on("close", () => {
-          msg.i("Audio call closed");
+          msg.i("Call closed");
         });
 
         this.shared.peers.remote.audio = call;
       });
     },
 
-    playRemoteAudio(remoteAudioStream) {
-      // Create or reuse audio element to play remote audio
-      const audioElement = this.$refs.remoteAudio || null;
-      if (!audioElement) return;
+    playRemoteAudio(remoteStream) {
+      // Create or reuse video element to play remote stream
+      this.$nextTick(() => {
+        const videoElement = this.$refs.remoteCallVideo;
+        if (!videoElement) {
+           console.warn("Video element not found in playRemoteAudio");
+           return;
+        }
 
-      // For some browsers, we need to handle autoplay restrictions
-      audioElement.srcObject = remoteAudioStream;
-      const playPromise = audioElement.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          msg.w("Audio autoplay was prevented:", error);
-          // Audio will play when user interacts with the page
-        });
-      }
+        // For some browsers, we need to handle autoplay restrictions
+        videoElement.srcObject = remoteStream;
+        const playPromise = videoElement.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error) => {
+            msg.w("Video autoplay was prevented:", error);
+            // Video will play when user interacts with the page
+          });
+        }
+      });
     },
 
     startAudioCall() {
       if (!this.shared.app.audioStream || !this.shared.peers.remote.data) {
-        msg.w("Cannot start audio call: missing audio stream or data connection");
+        msg.w("Cannot start call: missing stream or data connection");
         return;
       }
 
       if (!this.shared.peers.local.audio) {
-        msg.e("Audio peer not initialized");
+        msg.e("Call peer not initialized");
         return;
       }
 
       const peerID = this.isClient ? this.shared.app.roomID : this.shared.app.guestID;
 
       if (!peerID) {
-        msg.e("Cannot start audio call: peer ID not available");
+        msg.e("Cannot start call: peer ID not available");
         return;
       }
 
-      // Close existing audio call if any
+      // Close existing call if any
       if (this.shared.peers.remote.audio) {
         this.shared.peers.remote.audio.close();
       }
 
       try {
-        // Make an audio call to the remote peer
-        const audioCall = this.shared.peers.local.audio.call(`${peerID}-audio`, this.shared.app.audioStream);
+        // Make a call to the remote peer
+        const call = this.shared.peers.local.audio.call(`${peerID}-audio`, this.shared.app.audioStream);
 
-        if (!audioCall) {
-          msg.e("Failed to initiate audio call");
+        if (!call) {
+          msg.e("Failed to initiate call");
           return;
         }
 
-        audioCall.on("stream", (remoteAudioStream) => {
-          msg.i("Received remote audio stream from outgoing call");
-          this.playRemoteAudio(remoteAudioStream);
+        call.on("stream", (remoteStream) => {
+          msg.i("Received remote stream from outgoing call");
+          this.playRemoteAudio(remoteStream);
         });
 
-        audioCall.on("error", (err) => {
-          msg.e("Audio call error:", err);
+        call.on("error", (err) => {
+          msg.e("Call error:", err);
         });
 
-        audioCall.on("close", () => {
-          msg.i("Outgoing audio call closed");
+        call.on("close", () => {
+          msg.i("Outgoing call closed");
         });
 
-        this.shared.peers.remote.audio = audioCall;
-        msg.i(`Audio call initiated to ${peerID}-audio`);
+        this.shared.peers.remote.audio = call;
+        msg.i(`Call initiated to ${peerID}-audio`);
       } catch (error) {
-        msg.e("Failed to start audio call:", error);
+        msg.e("Failed to start call:", error);
       }
     },
 
     stopAudioCall() {
-      // Stop local audio stream
+      // Stop local stream
       if (this.shared.app.audioStream) {
         this.shared.app.audioStream.getTracks().forEach((track) => track.stop());
         this.shared.app.audioStream = null;
       }
 
-      // Close remote audio call
+      // Close remote call
       if (this.shared.peers.remote.audio) {
         this.shared.peers.remote.audio.close();
         this.shared.peers.remote.audio = null;
       }
 
-      // Remove remote audio element
-      const audioElement = this.$refs.remoteAudio;
-      if (audioElement) audioElement.srcObject = null;
+      // Remove remote video element source
+      const remoteVideo = this.$refs.remoteCallVideo;
+      if (remoteVideo) remoteVideo.srcObject = null;
+
+      // Remove local video element source
+      const localVideo = this.$refs.localCallVideo;
+      if (localVideo) localVideo.srcObject = null;
     },
     copyShareLink(silent = false) {
       const link = `${this.locationOrigin}/?join=${this.roomID}`;
@@ -553,13 +623,114 @@ export default {
         this.stopAudioCall();
       });
     },
-  },
-  unmounted() {
-    if (this.rttTimer) clearInterval(this.rttTimer);
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    // Consider adding resetSharedState() here as well if we want auto-cleanup
+    handleResize() {
+      // Ensure window stays within bounds on resize
+      const maxX = window.innerWidth - (this.isCollapsed ? 48 : 240);
+      const maxY = window.innerHeight - (this.isCollapsed ? 48 : 180);
+      
+      this.windowPos.x = Math.min(Math.max(0, this.windowPos.x), maxX);
+      this.windowPos.y = Math.min(Math.max(0, this.windowPos.y), maxY);
+    },
+    startDrag(e) {
+      // Prevent drag if targeting controls (if any)
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'MDUI-ICON') {
+        // Allow click to pass through
+        return;
+      }
+      
+      this.isDragging = true;
+      this.hasMoved = false;
+      this.dragStartTime = Date.now();
+      
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+      
+      this.dragOffset.x = clientX - this.windowPos.x;
+      this.dragOffset.y = clientY - this.windowPos.y;
+      
+      document.addEventListener('mousemove', this.onDrag);
+      document.addEventListener('touchmove', this.onDrag, { passive: false });
+      document.addEventListener('mouseup', this.stopDrag);
+      document.addEventListener('touchend', this.stopDrag);
+    },
+    onDrag(e) {
+      if (!this.isDragging) return;
+      e.preventDefault(); // Prevent scrolling
+      
+      this.hasMoved = true;
+      const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+      const clientY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+      
+      this.windowPos.x = clientX - this.dragOffset.x;
+      this.windowPos.y = clientY - this.dragOffset.y;
+    },
+    stopDrag(e) {
+      if (!this.isDragging) return;
+      this.isDragging = false;
+      
+      document.removeEventListener('mousemove', this.onDrag);
+      document.removeEventListener('touchmove', this.onDrag);
+      document.removeEventListener('mouseup', this.stopDrag);
+      document.removeEventListener('touchend', this.stopDrag);
+      
+      // Auto-collapse if dropped off-screen
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      // Calculate center of the video window
+      const centerX = this.windowPos.x + 120; // 240/2
+      const centerY = this.windowPos.y + 90;  // 180/2
+      
+      const isOffScreen = 
+        centerX < 0 || 
+        centerX > windowWidth || 
+        centerY < 0 || 
+        centerY > windowHeight;
+        
+      if (isOffScreen && !this.isCollapsed) {
+        this.isCollapsed = true;
+        // Snap to nearest edge
+        if (centerX < windowWidth / 2) {
+          this.windowPos.x = 20;
+        } else {
+          this.windowPos.x = windowWidth - 68; // 48 + 20 margin
+        }
+        // Keep Y within bounds
+        const safeMargin = 20;
+        this.windowPos.y = Math.min(Math.max(safeMargin, this.windowPos.y), windowHeight - safeMargin - 48);
+      } else {
+        // Keep within bounds if not collapsing
+        const safeMargin = 20;
+        this.windowPos.x = Math.min(Math.max(-240 + safeMargin, this.windowPos.x), windowWidth - safeMargin);
+        this.windowPos.y = Math.min(Math.max(0, this.windowPos.y), windowHeight - safeMargin);
+      }
+    },
+    handleWindowClick() {
+      console.log(7777)
+      if (this.hasMoved && (Date.now() - this.dragStartTime > 200)) {
+        // It was a drag, not a click
+        return;
+      }
+      
+      if (this.isCollapsed) {
+        this.isCollapsed = false;
+        // Move to safe position if needed
+        const windowWidth = window.innerWidth;
+        if (this.windowPos.x <= 0) this.windowPos.x = 20;
+        else if (this.windowPos.x >= windowWidth - 48) this.windowPos.x = windowWidth - 260;
+      }
+    },
   },
   mounted() {
+    // Initialize video window position to top-right
+    this.windowPos = {
+      x: window.innerWidth - 260, // 240 width + 20 margin
+      y: 70
+    };
+    
+    // Handle resize to keep window on screen
+    window.addEventListener('resize', this.handleResize);
+
     // 初始化检查
     if (this.roomID === "" || !this.roomID) {
       this.$router.replace("/");
@@ -787,12 +958,14 @@ export default {
       if (videoEl) {
         if (this.shared.app.screenStream) {
           videoEl.srcObject = this.shared.app.screenStream;
-        } else videoEl.src = this.shared.app.videoURL;
+        } else {videoEl.src = this.shared.app.videoURL;}
         videoEl.load();
       }
     }
-  },
+    },
   beforeUnmount() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    window.removeEventListener('resize', this.handleResize);
     if (this.shared.app.syncThread) clearInterval(this.shared.app.syncThread);
     if (this.shared.app.pingThread) clearInterval(this.shared.app.pingThread);
     if (this.rttTimer) clearInterval(this.rttTimer);
@@ -804,15 +977,74 @@ export default {
     this.audioCallListenerRegistered = false;
     this.remoteVoiceEnabled = false;
   },
-  components: {
-    "reelsync-loading-ring": LoadingRing,
-    "reelsync-video-player": VideoPlayer,
-     "vue-qrcode": VueQrcode
-  },
+
 };
 </script>
 
 <style scoped>
+.video-call-window {
+  position: fixed;
+  top: 0;
+  left: 0;
+  /* Removed fixed top/right/width/height here as they are controlled by style binding */
+  width: 240px;
+  height: 180px;
+  background-color: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  /* Transition handled in computed style */
+  touch-action: none; /* Prevent browser handling of gestures */
+}
+
+.video-call-window.collapsed {
+  background-color: rgb(var(--mdui-color-primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.collapsed-content {
+  color: rgb(var(--mdui-color-on-primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remote-call-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.local-call-video {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 80px;
+  height: 60px;
+  background-color: #333;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 600px) {
+  .video-call-window {
+    width: 160px;
+    height: 120px;
+    bottom: 80px; /* Make space for bottom controls if any */
+  }
+  
+  .local-call-video {
+    width: 50px;
+    height: 37.5px;
+  }
+}
 .stream-container {
   display: flex;
   flex-direction: column;
