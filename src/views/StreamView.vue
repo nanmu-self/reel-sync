@@ -100,13 +100,12 @@
       :style="videoWindowStyle"
       @mousedown="startDrag"
       @touchstart="startDrag"
-      @click="handleWindowClick"
     >
       <template v-if="!isCollapsed">
         <video ref="remoteCallVideo" class="remote-call-video" autoplay playsinline></video>
         <video ref="localCallVideo" class="local-call-video" autoplay playsinline muted></video>
       </template>
-      <div v-else class="collapsed-content">
+      <div v-else class="collapsed-content"  @click="handleWindowClick">
         <mdui-icon name="videocam--rounded"></mdui-icon>
       </div>
     </div>
@@ -706,11 +705,12 @@ export default {
       }
     },
     handleWindowClick() {
-      console.log(7777)
-      if (this.hasMoved && (Date.now() - this.dragStartTime > 200)) {
-        // It was a drag, not a click
-        return;
-      }
+      // console.log(7777)
+      // console.log(this.isCollapsed)
+      // if (this.hasMoved && (Date.now() - this.dragStartTime > 500)) {
+      //   // It was a drag, not a click
+      //   return;
+      // }
       
       if (this.isCollapsed) {
         this.isCollapsed = false;
